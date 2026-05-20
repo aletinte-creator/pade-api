@@ -1,0 +1,1 @@
+app = FastAPI()@app.get("/")
