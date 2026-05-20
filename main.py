@@ -1,22 +1,11 @@
 from fastapi import FastAPI
-
-app = FastAPI()
-
-@app.get("/")
-def home():
-    return {"message": "PADE API funcionando"}
-
-@app.get("/ping")
-def ping():
-    return {"status": "ok"}
-from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Literal, Dict, Any
 
-app = FastAPI()
+app = FastAPI(title="PADE 1.1 API")
 
-# CORS para que tu web (Hostinger) pueda llamar a la API
+# CORS para que tu web (Hostinger) pueda llamar a la API desde el navegador
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # luego lo acotamos a tu dominio
@@ -24,8 +13,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-Signo = Literal["A","B","C","D","E","F"]
-Tipo = Literal["S","C","X"]
+Signo = Literal["A", "B", "C", "D", "E", "F"]
+Tipo = Literal["S", "C", "X"]
 
 class ResponseItem(BaseModel):
     id: int
@@ -63,3 +52,4 @@ def run(req: RunRequest) -> Dict[str, Any]:
         },
         "trace": {}
     }
+    
