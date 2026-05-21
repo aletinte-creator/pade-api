@@ -115,14 +115,22 @@ def ping() -> Dict[str, str]:
 @app.post("/run")
 def run(req: RunRequest) -> Dict[str, Any]:
     try:
-        report = _protected_report_from_payload(req.payload.responses)
+        responses = req.payload.responses
+        #  Vector G real
+        vector_G = [r.intensidad for r in responses]
+        #  Informe
+        report = _protected_report_from_payload(responses)
     except Exception:
-        raise HTTPException(status_code=400, detail="Error al generar el informe protegido")
+        raise HTTPException(
+            status_code=400,
+            detail="Error al generar el informe protegido"
+        )
     now = datetime.now(timezone.utc).isoformat()
     return {
         "status": "ProductionReady",
         "system": API_SYSTEM,
         "timestamp": now,
+        "vector_G": vector_G,
         "metrics": {},
         "probabilistic_module": {},
         "report": report,
