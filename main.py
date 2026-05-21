@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Literal
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator, model_validator
+from mev01_core import MEVResponse, procesar_mev01_v13_rev
 API_SYSTEM = "PADE 1.1"
 API_VERSION = "0.1.0"
 CONCLUSION_BY_LEVEL = {
@@ -117,66 +118,170 @@ def home() -> Dict[str, str]:
 def ping() -> Dict[str, str]:
     return {"status": "ok"}
 @app.post("/run")
+@app.post("/run")
 def run(req: RunRequest) -> Dict[str, Any]:
     try:
         responses = req.payload.responses
         vector_G = [r.intensidad for r in responses]
         report = _protected_report_from_payload(responses)
 
-        counts = {k: 0 for k in ("A", "B", "C", "D", "E", "F")}
+        ORDER = ["A", "B", "C", "D", "E", "F"]
+        KAPPA = {"S": 0.8, "C": 1.0, "X": 1.2}  
+        K_SPARSE = 12  
+
+        def one_hot(signo: str) -> List[float]:
+            v = [0.0] * 6
+            v[ORDER.index(signo)] = 1.0
+            return v
+
+        def vec_add(a: List[float], b: List[float]) -> List[float]:
+            return [x + y for x, y in zip(a, b)]
+
+        def vec_sub(a: List[float], b: List[float]) -> List[float]:
+            return [x - y for x, y in zip(a, b)]
+
+        def vec_scale(a: List[float], s: float) -> List[float]:
+            return [x * s for x in a]
+
+        def vec_div(a: List[float], s: float) -> List[float]:
+            return [x / s for x in a]
+
+        def norm2(a: List[float]) -> float:
+            return math.sqrt(sum(x * x for x in a))
+
+        n = len(responses)
+
+        # 1) Energía efectiva y pesos:
+        g_eff = []
+        w = []
+        v_list = []
+
         for r in responses:
-            counts[r.signo] += 1
+            ge = float(r.intensidad) * float(KAPPA[r.tipo])  
+            wi = 1.0 + float(req.alpha) * ge                 
+            g_eff.append(ge)
+            w.append(wi)
+            v_list.append(one_hot(r.signo))
 
-        total = sum(counts.values())
-        probs = {k: v / total for k, v in counts.items()}
+        # 2) Trayectoria T_i y estado final T:
+        T_series: List[List[float]] = []
+        num = [0.0] * 6
+        den = 0.0
 
-        entropy = -sum(p * math.log(p) for p in probs.values() if p > 0)
-        max_p = max(probs.values())
+        for i in range(n):
+            num = vec_add(num, vec_scale(v_list[i], w[i]))
+            den += w[i]
+            T_series.append(vec_div(num, den))
 
-        # -------- ENTROPY LEVEL --------
-        if entropy < 1.0:
+        T_final = T_series[-1]
+
+        # 3) Movimiento M y M':
+        if n <= 1:
+            M = 0.0
+        else:
+            acc = 0.0
+            for i in range(1, n):
+                acc += norm2(vec_sub(T_series[i], T_series[i - 1]))
+            M = acc / (n - 1)
+        M_prime = M / 2.0 
+
+        # 4) Dispersión D y G_norm 
+        D = 1.0 - max(T_final) 
+        G_norm = sum(r.intensidad for r in responses) / (5.0 * n)  
+       
+        # 5) Tensión tau:
+        tau = float(req.beta[0]) * D + float(req.beta[1]) * G_norm + float(req.beta[2]) * M_prime  
+
+        # 6) theta (distribución base suavizada):
+        sum_w = sum(w)
+        theta = []
+        for k in ORDER:
+            mass = sum(w[i] for i in range(n) if responses[i].signo == k)
+            theta.append((mass + 1.0) / (sum_w + 6.0))
+
+        # 7) Matriz de transición Pi con Laplace smoothing:
+        counts_jk = {j: {k: 0 for k in ORDER} for j in ORDER}
+        for i in range(1, n):
+            prev_ = responses[i - 1].signo
+            curr_ = responses[i].signo
+            counts_jk[prev_][curr_] += 1
+
+        Pi = {j: [] for j in ORDER}
+        for j in ORDER:
+            row_sum = sum(counts_jk[j].values())
+            Pi[j] = [(counts_jk[j][k] + 1.0) / (row_sum + 6.0) for k in ORDER]
+
+        # 8) lambda_eff anti-sparsity:
+        m = n - 1
+        lambda_eff = float(req.lambda_c) * (m / (m + K_SPARSE)) if m > 0 else 0.0  
+
+        # 9) P_opcion (predicción próxima opción):
+        last_signo = responses[-1].signo
+        row_last = Pi[last_signo]
+        P_opcion_next = [
+            lambda_eff * row_last[i] + (1.0 - lambda_eff) * theta[i]
+            for i in range(6)
+        ]
+        # 10) Entropía H en base 2:
+        H = -sum(p * math.log(p, 2) for p in P_opcion_next if p > 0.0) 
+
+        dominance = max(P_opcion_next)
+
+        # -------- ENTROPY LEVEL (ahora H es log2) --------
+        # (umbrales sugeridos: puedes ajustarlos luego; aquí dejamos 3 bandas simples)
+        if H < 1.0:
             entropy_level = "low"
-        elif entropy < 1.5:
+        elif H < 1.8:
             entropy_level = "medium"
         else:
             entropy_level = "high"
 
-        # -------- LEVEL (basado en entropy) --------
-        if entropy < 1.0:
+        # -------- LEVEL (basado en entropía H) --------
+        if H < 1.0:
             level = "high"
-        elif entropy < 1.5:
+        elif H < 1.8:
             level = "medium"
         else:
             level = "low"
 
-        #  Aplicar al reporte
+        # Aplicar al reporte
         report["level"] = level
         report["conclusion"] = CONCLUSION_BY_LEVEL[level]
 
         probabilistic_module = {
-            "distribution": list(probs.values()),
-            "entropy": entropy,
+            "distribution": P_opcion_next,  
+            "entropy": H,                   
             "entropy_level": entropy_level,
-            "dominance": max_p,
+            "dominance": dominance,
+            "lambda_eff": lambda_eff,      
         }
+
         # -------- DOMINANCE TEXT --------
-        if max_p > 0.4:
+        if dominance > 0.4:
             dominance_text = "marcadamente dominante"
-        elif max_p >= 0.2:
+        elif dominance >= 0.2:
             dominance_text = "predominante"
         else:
             dominance_text = "sin predominancia clara"
-            
+
         # -------- Summary dinámico --------
         report["summary"] = report["summary"].replace(
             "patrón predominante",
-            f"patrón {dominance_text}"
+            f"patrón {dominance_text}",
         )
+
+        # (Opcional) Completar metrics con el core MEV
+        metrics = {
+            "T": T_final,
+            "M": M,
+            "M_prime": M_prime,
+            "tau": tau,
+        }
 
     except Exception:
         raise HTTPException(
             status_code=400,
-            detail="Error al generar el informe protegido"
+            detail="Error al generar el informe protegido",
         )
 
     now = datetime.now(timezone.utc).isoformat()
@@ -185,11 +290,13 @@ def run(req: RunRequest) -> Dict[str, Any]:
         "system": API_SYSTEM,
         "timestamp": now,
         "vector_G": vector_G,
-        "metrics": {},
+        "metrics": metrics,
         "probabilistic_module": probabilistic_module,
         "report": report,
         "trace": {
             "api_version": API_VERSION,
             "semantic_layer": "v1.0-closed",
+            "core_version": "1.3",
+            "K_sparse": 12,
         },
     }
