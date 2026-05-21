@@ -118,117 +118,31 @@ def home() -> Dict[str, str]:
 def ping() -> Dict[str, str]:
     return {"status": "ok"}
 @app.post("/run")
-@app.post("/run")
 def run(req: RunRequest) -> Dict[str, Any]:
     try:
         responses = req.payload.responses
         vector_G = [r.intensidad for r in responses]
         report = _protected_report_from_payload(responses)
 
-        ORDER = ["A", "B", "C", "D", "E", "F"]
-        KAPPA = {"S": 0.8, "C": 1.0, "X": 1.2}  
-        K_SPARSE = 12  
-
-        def one_hot(signo: str) -> List[float]:
-            v = [0.0] * 6
-            v[ORDER.index(signo)] = 1.0
-            return v
-
-        def vec_add(a: List[float], b: List[float]) -> List[float]:
-            return [x + y for x, y in zip(a, b)]
-
-        def vec_sub(a: List[float], b: List[float]) -> List[float]:
-            return [x - y for x, y in zip(a, b)]
-
-        def vec_scale(a: List[float], s: float) -> List[float]:
-            return [x * s for x in a]
-
-        def vec_div(a: List[float], s: float) -> List[float]:
-            return [x / s for x in a]
-
-        def norm2(a: List[float]) -> float:
-            return math.sqrt(sum(x * x for x in a))
-
-        n = len(responses)
-
-        # 1) Energía efectiva y pesos:
-        g_eff = []
-        w = []
-        v_list = []
-
-        for r in responses:
-            ge = float(r.intensidad) * float(KAPPA[r.tipo])  
-            wi = 1.0 + float(req.alpha) * ge                 
-            g_eff.append(ge)
-            w.append(wi)
-            v_list.append(one_hot(r.signo))
-
-        # 2) Trayectoria T_i y estado final T:
-        T_series: List[List[float]] = []
-        num = [0.0] * 6
-        den = 0.0
-
-        for i in range(n):
-            num = vec_add(num, vec_scale(v_list[i], w[i]))
-            den += w[i]
-            T_series.append(vec_div(num, den))
-
-        T_final = T_series[-1]
-
-        # 3) Movimiento M y M':
-        if n <= 1:
-            M = 0.0
-        else:
-            acc = 0.0
-            for i in range(1, n):
-                acc += norm2(vec_sub(T_series[i], T_series[i - 1]))
-            M = acc / (n - 1)
-        M_prime = M / 2.0 
-
-        # 4) Dispersión D y G_norm 
-        D = 1.0 - max(T_final) 
-        G_norm = sum(r.intensidad for r in responses) / (5.0 * n)  
+        # --- Llamada al CORE MEV01 v1.3 ---
        
-        # 5) Tensión tau:
-        tau = float(req.beta[0]) * D + float(req.beta[1]) * G_norm + float(req.beta[2]) * M_prime  
-
-        # 6) theta (distribución base suavizada):
-        sum_w = sum(w)
-        theta = []
-        for k in ORDER:
-            mass = sum(w[i] for i in range(n) if responses[i].signo == k)
-            theta.append((mass + 1.0) / (sum_w + 6.0))
-
-        # 7) Matriz de transición Pi con Laplace smoothing:
-        counts_jk = {j: {k: 0 for k in ORDER} for j in ORDER}
-        for i in range(1, n):
-            prev_ = responses[i - 1].signo
-            curr_ = responses[i].signo
-            counts_jk[prev_][curr_] += 1
-
-        Pi = {j: [] for j in ORDER}
-        for j in ORDER:
-            row_sum = sum(counts_jk[j].values())
-            Pi[j] = [(counts_jk[j][k] + 1.0) / (row_sum + 6.0) for k in ORDER]
-
-        # 8) lambda_eff anti-sparsity:
-        m = n - 1
-        lambda_eff = float(req.lambda_c) * (m / (m + K_SPARSE)) if m > 0 else 0.0  
-
-        # 9) P_opcion (predicción próxima opción):
-        last_signo = responses[-1].signo
-        row_last = Pi[last_signo]
-        P_opcion_next = [
-            lambda_eff * row_last[i] + (1.0 - lambda_eff) * theta[i]
-            for i in range(6)
+        mev_responses = [
+            MEVResponse(id=r.id, signo=r.signo, intensidad=r.intensidad, tipo=r.tipo)
+            for r in responses
         ]
-        # 10) Entropía H en base 2:
-        H = -sum(p * math.log(p, 2) for p in P_opcion_next if p > 0.0) 
 
-        dominance = max(P_opcion_next)
+        mev_out = procesar_mev01_v13_rev(
+            responses=mev_responses,
+            alpha=req.alpha,
+            beta=req.beta,
+            lambda_c=req.lambda_c,
+        )
 
-        # -------- ENTROPY LEVEL (ahora H es log2) --------
-        # (umbrales sugeridos: puedes ajustarlos luego; aquí dejamos 3 bandas simples)
+        P_next = mev_out["probabilistic"]["P_opcion_next"]
+        H = mev_out["probabilistic"]["H"] 
+        dominance = max(P_next)
+
+        # --- Entropy level (umbrales iniciales; luego los afinamos) ---
         if H < 1.0:
             entropy_level = "low"
         elif H < 1.8:
@@ -236,7 +150,7 @@ def run(req: RunRequest) -> Dict[str, Any]:
         else:
             entropy_level = "high"
 
-        # -------- LEVEL (basado en entropía H) --------
+        # --- Level semántico (basado en H) ---
         if H < 1.0:
             level = "high"
         elif H < 1.8:
@@ -244,19 +158,17 @@ def run(req: RunRequest) -> Dict[str, Any]:
         else:
             level = "low"
 
-        # Aplicar al reporte
         report["level"] = level
         report["conclusion"] = CONCLUSION_BY_LEVEL[level]
 
         probabilistic_module = {
-            "distribution": P_opcion_next,  
-            "entropy": H,                   
+            "distribution": P_next,
+            "entropy": H,
             "entropy_level": entropy_level,
             "dominance": dominance,
-            "lambda_eff": lambda_eff,      
+            "lambda_eff": mev_out["probabilistic"]["lambda_eff"],
         }
 
-        # -------- DOMINANCE TEXT --------
         if dominance > 0.4:
             dominance_text = "marcadamente dominante"
         elif dominance >= 0.2:
@@ -264,18 +176,16 @@ def run(req: RunRequest) -> Dict[str, Any]:
         else:
             dominance_text = "sin predominancia clara"
 
-        # -------- Summary dinámico --------
         report["summary"] = report["summary"].replace(
             "patrón predominante",
             f"patrón {dominance_text}",
         )
 
-        # (Opcional) Completar metrics con el core MEV
         metrics = {
-            "T": T_final,
-            "M": M,
-            "M_prime": M_prime,
-            "tau": tau,
+            "T": mev_out["core"]["T"],
+            "M": mev_out["core"]["M"],
+            "M_prime": mev_out["core"]["M_prime"],
+            "tau": mev_out["core"]["tau"],
         }
 
     except Exception:
@@ -296,7 +206,10 @@ def run(req: RunRequest) -> Dict[str, Any]:
         "trace": {
             "api_version": API_VERSION,
             "semantic_layer": "v1.0-closed",
-            "core_version": "1.3",
-            "K_sparse": 12,
+            "core_version": mev_out["trace"]["core_version"],
+            "implementation_id": mev_out["trace"]["implementation_id"],
+            "hash_sha256": mev_out["trace"]["hash_sha256"],
+            "dtype": mev_out["trace"]["dtype"],
+            "K_sparse": mev_out["trace"]["K_sparse"],
         },
     }
