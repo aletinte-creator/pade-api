@@ -117,30 +117,49 @@ def run(req: RunRequest) -> Dict[str, Any]:
         responses = req.payload.responses
         vector_G = [r.intensidad for r in responses]
         report = _protected_report_from_payload(responses)
+
         counts = {k: 0 for k in ("A", "B", "C", "D", "E", "F")}
         for r in responses:
             counts[r.signo] += 1
+
         total = sum(counts.values())
         probs = {k: v / total for k, v in counts.items()}
+
         entropy = -sum(p * math.log(p) for p in probs.values() if p > 0)
         max_p = max(probs.values())
+
         if entropy < 1.0:
             entropy_level = "low"
         elif entropy < 1.5:
             entropy_level = "medium"
         else:
             entropy_level = "high"
+
         probabilistic_module = {
-            "distribution": list(probs.values()),  
+            "distribution": list(probs.values()),
             "entropy": entropy,
             "entropy_level": entropy_level,
             "dominance": max_p,
         }
+        #  DOMINANCE TEXT 
+        if max_p > 0.4:
+            dominance_text = "marcadamente dominante"
+        elif max_p >= 0.2:
+            dominance_text = "predominante"
+        else:
+            dominance_text = "sin predominancia clara"
+        #  Cambiamos el summary
+        report["summary"] = report["summary"].replace(
+            "patrón predominante",
+            f"patrón {dominance_text}"
+        )
+
     except Exception:
         raise HTTPException(
             status_code=400,
             detail="Error al generar el informe protegido"
         )
+
     now = datetime.now(timezone.utc).isoformat()
     return {
         "status": "ProductionReady",
@@ -148,7 +167,7 @@ def run(req: RunRequest) -> Dict[str, Any]:
         "timestamp": now,
         "vector_G": vector_G,
         "metrics": {},
-        "probabilistic_module": probabilistic_module, 
+        "probabilistic_module": probabilistic_module,
         "report": report,
         "trace": {
             "api_version": API_VERSION,
