@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal
 from fastapi import FastAPI, HTTPException
@@ -117,27 +118,6 @@ def home() -> Dict[str, str]:
 def ping() -> Dict[str, str]:
     return {"status": "ok"}
 @app.post("/run")
-def run(req: RunRequest) -> Dict[str, Any]:
-    try:
-        responses = req.payload.responses
-        vector_G = [r.intensidad for r in responses]
-        report = _protected_report_from_payload(responses)
-
-        # --- Llamada al CORE MEV01 v1.3 ---
-       
-        mev_responses = [
-            MEVResponse(id=r.id, signo=r.signo, intensidad=r.intensidad, tipo=r.tipo)
-            for r in responses
-        ]
-
-        mev_out = procesar_mev01_v13_rev(
-            responses=mev_responses,
-            alpha=req.alpha,
-            beta=req.beta,
-            lambda_c=req.lambda_c,
-        )
-
-      @app.post("/run")
 def run(req: RunRequest) -> Dict[str, Any]:
     try:
         responses = req.payload.responses
