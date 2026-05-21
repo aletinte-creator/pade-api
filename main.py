@@ -142,24 +142,29 @@ def run(req: RunRequest) -> Dict[str, Any]:
         H = mev_out["probabilistic"]["H"] 
         dominance = max(P_next)
 
-        # --- Entropy level (umbrales iniciales; luego los afinamos) ---
-        H_max = math.log(6, 2)   # log2(6)
-        H_norm = H / H_max
+       # --- Entropy level ---
+       H_max = math.log(6, 2)   # log2(6)
+       H_norm = H / H_max
 
-        if H_norm < 0.40:
-            entropy_level = "low"
-        elif H_norm < 0.75:
-            entropy_level = "medium"
-        else:
-            entropy_level = "high"
+       if H_norm < 0.40:
+           entropy_level = "low"
+       elif H_norm < 0.65:
+           entropy_level = "medium"
+       elif H_norm < 0.90:
+           entropy_level = "medium_high"
+       else:
+           entropy_level = "high"
 
-        # --- Level semántico (basado en H_norm) ---
-        if H_norm < 0.40:
-            level = "high"
-        elif H_norm < 0.75:
-            level = "medium"
-        else:
-            level = "low"
+       # --- Level semántico ---
+       if H_norm < 0.40:
+           level = "high"
+       elif H_norm < 0.65:
+           level = "medium"
+       elif H_norm < 0.90:
+           level = "medium"
+       else:
+           level = "low"
+
         report["level"] = level
         report["conclusion"] = CONCLUSION_BY_LEVEL[level]
 
