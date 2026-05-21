@@ -7,6 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator, model_validator
 API_SYSTEM = "PADE 1.1"
 API_VERSION = "0.1.0"
+CONCLUSION_BY_LEVEL = {
+    "high": "El patrón presenta una forma de actuación estable y coherente, orientada a la resolución de situaciones.",
+    "medium": "Se configura una dinámica de actuación organizada, pero con variaciones a lo largo del proceso.",
+    "low": "Esta configuración despliega una distribución variable entre múltiples tendencias, sin una predominancia sostenida."
+}
 Signo = Literal["A", "B", "C", "D", "E", "F"]
 TipoSituacion = Literal["S", "C", "X"]
 class ResponseItem(BaseModel):
@@ -128,38 +133,46 @@ def run(req: RunRequest) -> Dict[str, Any]:
         entropy = -sum(p * math.log(p) for p in probs.values() if p > 0)
         max_p = max(probs.values())
 
+        # -------- ENTROPY LEVEL --------
         if entropy < 1.0:
             entropy_level = "low"
         elif entropy < 1.5:
             entropy_level = "medium"
         else:
             entropy_level = "high"
+
         # -------- LEVEL (basado en entropy) --------
         if entropy < 1.0:
-           level = "high"
+            level = "high"
         elif entropy < 1.5:
-           level = "medium"
+            level = "medium"
         else:
-           level = "low"
+            level = "low"
+
+        #  Aplicar al reporte
+        report["level"] = level
+        report["conclusion"] = CONCLUSION_BY_LEVEL[level]
+
         probabilistic_module = {
             "distribution": list(probs.values()),
             "entropy": entropy,
             "entropy_level": entropy_level,
             "dominance": max_p,
         }
-        #  DOMINANCE TEXT 
+        # -------- DOMINANCE TEXT --------
         if max_p > 0.4:
             dominance_text = "marcadamente dominante"
         elif max_p >= 0.2:
             dominance_text = "predominante"
         else:
             dominance_text = "sin predominancia clara"
-        #  Cambiamos el summary
+            
+        # -------- Summary dinámico --------
         report["summary"] = report["summary"].replace(
             "patrón predominante",
             f"patrón {dominance_text}"
         )
-        report["level"] = level
+
     except Exception:
         raise HTTPException(
             status_code=400,
