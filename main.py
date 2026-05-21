@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal
 from fastapi import FastAPI, HTTPException
@@ -57,12 +58,12 @@ def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, A
         counts[r.signo] += 1
         g_vals.append(r.intensidad)
         t_counts[r.tipo] += 1
-   # determinismo en empates
+    # determinismo en empates
     order = ["A", "B", "C", "D", "E", "F"]
     top = sorted(counts.items(), key=lambda kv: (-kv[1], order.index(kv[0])))
     primary = top[0][0]
     secondary = top[1][0]
-     # frases oficiales (sin letras)
+    # frases oficiales (sin letras)
     phrase = {
         "A": "actuar de forma directa sobre la situación",
         "B": "organizar la situación mediante ajustes",
@@ -71,7 +72,6 @@ def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, A
         "E": "adaptarse personalmente a las condiciones",
         "F": "responder sin aplicar una estrategia definida",
     }
-    # bucket de intensidad (sin números)
     mean_g = sum(g_vals) / max(1, len(g_vals))
     if mean_g <= 1.5:
         intensity_txt = "respuestas mayormente inmediatas"
@@ -79,7 +79,7 @@ def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, A
         intensity_txt = "respuestas con un equilibrio entre reflexión y acción"
     else:
         intensity_txt = "respuestas con mayor dificultad o demora en la decisión"
-     # bucket de contexto (sin S/C/X)
+    # bucket de contexto (sin S/C/X)
     max_t = max(t_counts["S"], t_counts["C"], t_counts["X"])
     if t_counts["S"] == max_t and t_counts["S"] >= t_counts["C"] and t_counts["S"] >= t_counts["X"]:
         context_txt = "situaciones de baja exigencia"
@@ -99,7 +99,6 @@ def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, A
         "conclusion": "Se observa una forma de actuación estable, consistente y orientada a la resolución de situaciones.",
     }
 app = FastAPI(title="PADE 1.1 API", version=API_VERSION)
-# CORS (luego lo acotas a tu dominio de Hostinger)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -116,10 +115,27 @@ def ping() -> Dict[str, str]:
 def run(req: RunRequest) -> Dict[str, Any]:
     try:
         responses = req.payload.responses
-        #  Vector G real
         vector_G = [r.intensidad for r in responses]
-        #  Informe
         report = _protected_report_from_payload(responses)
+        counts = {k: 0 for k in ("A", "B", "C", "D", "E", "F")}
+        for r in responses:
+            counts[r.signo] += 1
+        total = sum(counts.values())
+        probs = {k: v / total for k, v in counts.items()}
+        entropy = -sum(p * math.log(p) for p in probs.values() if p > 0)
+        max_p = max(probs.values())
+        if entropy < 1.0:
+            entropy_level = "low"
+        elif entropy < 1.5:
+            entropy_level = "medium"
+        else:
+            entropy_level = "high"
+        probabilistic_module = {
+            "distribution": list(probs.values()),  
+            "entropy": entropy,
+            "entropy_level": entropy_level,
+            "dominance": max_p,
+        }
     except Exception:
         raise HTTPException(
             status_code=400,
@@ -132,7 +148,7 @@ def run(req: RunRequest) -> Dict[str, Any]:
         "timestamp": now,
         "vector_G": vector_G,
         "metrics": {},
-        "probabilistic_module": {},
+        "probabilistic_module": probabilistic_module, 
         "report": report,
         "trace": {
             "api_version": API_VERSION,
