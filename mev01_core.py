@@ -51,9 +51,7 @@ def _norm2(a: List[float]) -> float:
 
 
 def _normalize_for_hash(responses: List[MEVResponse], alpha: float, beta: List[float], lambda_c: float) -> str:
-    """
-    Normalización estable para hash: payload + hiperparámetros + κ (DTM v1.3: material del hash). [1](https://onedrive.live.com/personal/2b938e45eb3d3834/_layouts/15/doc.aspx?resid=1ea1ee83-9150-4d64-b8d4-3aa4b0f4b8d4&cid=2b938e45eb3d3834)
-    """
+   
     parts = [
         f"alpha={alpha}",
         f"beta={beta[0]},{beta[1]},{beta[2]}",
@@ -75,7 +73,7 @@ def procesar_mev01_v13_rev(
     n = len(responses)
 
     # 1) Energía efectiva y peso:
-    # G_eff,i = G_i * κ(tipo_i) ; w_i = 1 + α * G_eff,i  [1](https://onedrive.live.com/personal/2b938e45eb3d3834/_layouts/15/doc.aspx?resid=1ea1ee83-9150-4d64-b8d4-3aa4b0f4b8d4&cid=2b938e45eb3d3834)
+    # G_eff,i = G_i * κ(tipo_i) ; w_i = 1 + α * G_eff,i  
     w: List[float] = []
     v_list: List[List[float]] = []
     for r in responses:
