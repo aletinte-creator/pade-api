@@ -134,7 +134,13 @@ def run(req: RunRequest) -> Dict[str, Any]:
             entropy_level = "medium"
         else:
             entropy_level = "high"
-
+        # -------- LEVEL (basado en entropy) --------
+        if entropy < 1.0:
+           level = "high"
+        elif entropy < 1.5:
+           level = "medium"
+        else:
+           level = "low"
         probabilistic_module = {
             "distribution": list(probs.values()),
             "entropy": entropy,
@@ -153,7 +159,7 @@ def run(req: RunRequest) -> Dict[str, Any]:
             "patrón predominante",
             f"patrón {dominance_text}"
         )
-
+        report["level"] = level
     except Exception:
         raise HTTPException(
             status_code=400,
