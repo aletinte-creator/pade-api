@@ -1,5 +1,4 @@
 from __future__ import annotations
-import math
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal
 from fastapi import FastAPI, HTTPException
@@ -143,20 +142,24 @@ def run(req: RunRequest) -> Dict[str, Any]:
         dominance = max(P_next)
 
         # --- Entropy level (umbrales iniciales; luego los afinamos) ---
-        if H < 1.0:
-            entropy_level = "low"
-        elif H < 1.8:
-            entropy_level = "medium"
-        else:
-            entropy_level = "high"
+       
+        H_max = math.log(6, 2)   # log2(6)
+        H_norm = H / H_max
 
-        # --- Level semántico (basado en H) ---
-        if H < 1.0:
-            level = "high"
-        elif H < 1.8:
-            level = "medium"
+        if H_norm < 0.40:
+        entropy_level = "low"
+        elif H_norm < 0.75:
+        entropy_level = "medium"
         else:
-            level = "low"
+        entropy_level = "high"
+
+        # --- Level semántico (basado en H_norm) ---
+        if H_norm < 0.40:
+        level = "high"
+        lif H_norm < 0.75:
+        level = "medium"
+        else:
+        level = "low"
 
         report["level"] = level
         report["conclusion"] = CONCLUSION_BY_LEVEL[level]
