@@ -318,8 +318,8 @@ def run(req: RunRequest) -> Dict[str, Any]:
                 tipo=r.tipo,
                 H=r.H   # ← CLAVE
             )
-            for r in responses
-      ]
+        for r in responses
+        ]
 
         mev_out = procesar_mev01_v13_rev(
             responses=mev_responses,
