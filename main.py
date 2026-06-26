@@ -100,13 +100,13 @@ class RunRequest(BaseModel):
             raise ValueError("beta debe cumplir beta[0] >= beta[2] >= beta[1]")
         return v
 
-   def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, Any]:
-    """
-    Informe protegido (capa textual):
-    - No expone letras A–F como letras (usa frases humanas).
-    - No expone G como lista (usa buckets: inmediato / equilibrio / demora).
-    - No expone S/C/X como códigos (usa: simples / complicadas / comprometidas).
-    """
+    def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, Any]:
+        """
+        Informe protegido (capa textual):
+        - No expone letras A–F como letras (usa frases humanas).
+        - No expone G como lista (usa buckets: inmediato / equilibrio / demora).
+        - No expone S/C/X como códigos (usa: simples / complicadas / comprometidas).
+        """
 
     ORDER = ["A", "B", "C", "D", "E", "F"]
 
