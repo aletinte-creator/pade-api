@@ -17,6 +17,18 @@ def entropy(values):
     counts = Counter(values)
     probs = [c / total for c in counts.values()]
     return -sum(p * math.log(p, 2) for p in probs if p > 0)
+    
+def cobertura(responses):
+    tipos = [r.tipo for r in responses]
+    Hs = [r.H.lower() for r in responses]
+    H_tipo = entropy(tipos)
+    H_H = entropy(Hs)
+
+    implicantes = sum(
+        1 for r in responses if r.H.lower() in ["sabiendo", "te_enteras"]
+    ) / len(responses)
+    return H_tipo + H_H + implicantes
+    
 API_SYSTEM = "PADE 1.1"
 API_VERSION = "0.1.0"
 
@@ -272,16 +284,23 @@ def ping() -> Dict[str, str]:
 def run(req: RunRequest) -> Dict[str, Any]:
     try:
         responses = req.payload.responses
-
+        coverage = cobertura(responses)
+        
         vector_G = [r.intensidad for r in responses]  # G = demora
 
         report = _protected_report_from_payload(responses)
 
         # --- Llamada al CORE MEV01 v1.3 (ya alineado con G=demora) ---
         mev_responses = [
-            MEVResponse(id=r.id, signo=r.signo, intensidad=r.intensidad, tipo=r.tipo)
+            MEVResponse(
+                id=r.id,
+                signo=r.signo,
+                intensidad=r.intensidad,
+                tipo=r.tipo,
+                H=r.H   # ← CLAVE
+            )
             for r in responses
-        ]
+      ]
 
         mev_out = procesar_mev01_v13_rev(
             responses=mev_responses,
@@ -353,6 +372,7 @@ def run(req: RunRequest) -> Dict[str, Any]:
         "vector_G": vector_G,
         "metrics": metrics,
         "probabilistic_module": probabilistic_module,
+        "coverage": coverage,
         "report": report,
         "trace": {
             "api_version": API_VERSION,
