@@ -9,7 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from mev01_core import MEVResponse, procesar_mev01_v13_rev
+from collections import Counter
+import math
 
+def entropy(values):
+    total = len(values)
+    counts = Counter(values)
+    probs = [c / total for c in counts.values()]
+    return -sum(p * math.log(p, 2) for p in probs if p > 0)
 API_SYSTEM = "PADE 1.1"
 API_VERSION = "0.1.0"
 
