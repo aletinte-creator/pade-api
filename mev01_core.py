@@ -12,6 +12,14 @@ ORDER: List[Signo] = ["A", "B", "C", "D", "E", "F"]
 
 # κ(S)=0.8, κ(C)=1.0, κ(X)=1.2
 KAPPA: Dict[Tipo, float] = {"S": 0.8, "C": 1.0, "X": 1.2}
+KAPPA_H: Dict[str, float] = {
+    "escuchaste": 0.8,
+    "viste": 0.9,
+    "entendiste": 1.0,
+    "aprendiste": 1.05,
+    "te_enteras": 1.2,
+    "sabiendo": 1.3
+}
 
 K_SPARSE = 12  # anti-sparsity
 G_MAX = 5      # G ∈ [0,5] donde 0=inmediato, 5=mucha demora
@@ -23,7 +31,7 @@ class MEVResponse:
     signo: Signo
     intensidad: int  # G = DEMORA ∈ [0,5]
     tipo: Tipo       # ∈ {S,C,X}
-
+    H: str
 
 class CoreOut(TypedDict):
     T: List[float]
@@ -96,7 +104,7 @@ def _normalize_for_hash(
         "G_semantics=demora_0_inmediato_5_tarde",
     ]
     for r in responses:
-        parts.append(f"{r.id}:{r.signo}:{r.intensidad}:{r.tipo}")
+        parts.append(f"{r.id}:{r.signo}:{r.intensidad}:{r.tipo}:{r.H}")
     return "|".join(parts)
 
 
@@ -121,9 +129,14 @@ def procesar_mev01_v13_rev(
     for r in responses:
         if r.intensidad < 0 or r.intensidad > G_MAX:
             raise ValueError("intensidad (G) fuera de rango 0..5")
+
         r_i = float(G_MAX - r.intensidad)       # rapidez
-        r_eff = r_i * KAPPA[r.tipo]
+
+        k_h = KAPPA_H.get(r.H.lower(), 1.0)
+        r_eff = r_i * KAPPA[r.tipo] * k_h       # ← MODIFICADO
+
         w_i = 1.0 + float(alpha) * r_eff
+
         w.append(w_i)
         v_list.append(_one_hot(r.signo))
 
