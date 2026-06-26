@@ -29,6 +29,23 @@ def cobertura(responses):
     ) / len(responses)
     return H_tipo + H_H + implicantes
     
+def coverage_text(cov):
+
+    if cov < 1.5:
+        return "La variedad de las situaciones es limitada, por lo que las conclusiones deben tomarse con cautela."
+
+    elif cov < 2.5:
+        return "Las situaciones presentan cierta diversidad, aunque no cubren completamente todos los aspectos relevantes."
+
+    elif cov < 3.5:
+        return "La variedad de las situaciones y su nivel de implicación permiten observar patrones con consistencia."
+
+    elif cov < 4.5:
+        return "El análisis se basa en una amplia variedad de situaciones, lo que refuerza la solidez del resultado."
+
+    else:
+        return "El análisis cubre una alta diversidad de situaciones y niveles de implicación, fortaleciendo la validez del resultado."
+    
 API_SYSTEM = "PADE 1.1"
 API_VERSION = "0.1.0"
 
@@ -83,7 +100,7 @@ class RunRequest(BaseModel):
             raise ValueError("beta debe cumplir beta[0] >= beta[2] >= beta[1]")
         return v
 
-def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, Any]:
+   def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, Any]:
     """
     Informe protegido (capa textual):
     - No expone letras A–F como letras (usa frases humanas).
@@ -289,6 +306,8 @@ def run(req: RunRequest) -> Dict[str, Any]:
         vector_G = [r.intensidad for r in responses]  # G = demora
 
         report = _protected_report_from_payload(responses)
+        cov_text = coverage_text(coverage)
+        report["details"].append(cov_text)
 
         # --- Llamada al CORE MEV01 v1.3 (ya alineado con G=demora) ---
         mev_responses = [
