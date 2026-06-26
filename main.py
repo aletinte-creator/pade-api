@@ -29,7 +29,7 @@ class ResponseItem(BaseModel):
     signo: Signo
     intensidad: int = Field(..., ge=0, le=5)  # G = DEMORA (0 inmediato, 5 mucha demora)
     tipo: TipoSituacion  # S/C/X
-
+    H: str
 
 class RunPayload(BaseModel):
     responses: List[ResponseItem]
