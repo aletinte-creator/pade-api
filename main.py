@@ -23,7 +23,6 @@ def cobertura(responses):
     Hs = [r.H.lower() for r in responses]
     H_tipo = entropy(tipos)
     H_H = entropy(Hs)
-
     implicantes = sum(
         1 for r in responses if r.H.lower() in ["sabiendo", "te_enteras"]
     ) / len(responses)
@@ -83,9 +82,7 @@ class RunPayload(BaseModel):
         return self
 
 
-class RunRequest(BaseModel):
-    payload: RunPayload
-    alpha: float = Field(..., ge=0.0)
+class RunRequest(BaseModel):class alpha: float = Field(..., ge=0.0)
     beta: List[float] = Field(..., min_length=3, max_length=3)
     lambda_c: float = Field(..., ge=0.0, le=1.0)
 
@@ -100,13 +97,14 @@ class RunRequest(BaseModel):
             raise ValueError("beta debe cumplir beta[0] >= beta[2] >= beta[1]")
         return v
 
-    def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, Any]:
-        """
-        Informe protegido (capa textual):
-        - No expone letras A–F como letras (usa frases humanas).
-        - No expone G como lista (usa buckets: inmediato / equilibrio / demora).
-        - No expone S/C/X como códigos (usa: simples / complicadas / comprometidas).
-        """
+
+def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, Any]:
+    """
+    Informe protegido (capa textual):
+    - No expone letras A–F como letras (usa frases humanas).
+    - No expone G como lista (usa buckets: inmediato / equilibrio / demora).
+    - No expone S/C/X como códigos (usa: simples / complicadas / comprometidas).
+    """
 
     ORDER = ["A", "B", "C", "D", "E", "F"]
 
@@ -124,6 +122,7 @@ class RunRequest(BaseModel):
         "C": "situaciones complicadas",
         "X": "situaciones comprometidas",
     }
+    payload: RunPayload
 
     def _timing_bucket(mean_g: float) -> str:
         # G = demora: 0 inmediato .. 5 mucha demora
