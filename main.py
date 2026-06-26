@@ -82,7 +82,9 @@ class RunPayload(BaseModel):
         return self
 
 
-class RunRequest(BaseModel):class alpha: float = Field(..., ge=0.0)
+class RunRequest(BaseModel):
+    payload: RunPayload
+    alpha: float = Field(..., ge=0.0)
     beta: List[float] = Field(..., min_length=3, max_length=3)
     lambda_c: float = Field(..., ge=0.0, le=1.0)
 
@@ -96,7 +98,6 @@ class RunRequest(BaseModel):class alpha: float = Field(..., ge=0.0)
         if not (v[0] >= v[2] >= v[1]):
             raise ValueError("beta debe cumplir beta[0] >= beta[2] >= beta[1]")
         return v
-
 
 def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, Any]:
     """
