@@ -27,6 +27,30 @@ def cobertura(responses):
     ) / len(responses)
     return H_tipo + H_H + implicantes
     
+def inconsistencia_H(responses):
+
+    cambios = 0
+    tensiones = 0
+
+    for i in range(len(responses)):
+        for j in range(i + 1, len(responses)):
+
+            r1 = responses[i]
+            r2 = responses[j]
+
+            # mismo tipo, distinto H
+            if r1.tipo == r2.tipo and r1.H != r2.H:
+
+                # cambia la decisión
+                if r1.signo != r2.signo:
+                    cambios += 1
+
+                # misma decisión pero cambia el tiempo
+                elif abs(r1.intensidad - r2.intensidad) >= 2:
+                    tensiones += 1
+
+    return cambios + 0.5 * tensiones   
+    
 def coverage_text(cov):
 
     if cov < 1.5:
@@ -43,6 +67,20 @@ def coverage_text(cov):
 
     else:
         return "El análisis cubre una alta diversidad de situaciones y niveles de implicación, fortaleciendo la validez del resultado."
+
+def inconsistencia_text(valor):
+
+    if valor < 2:
+        return "Tu forma de resolver los dilemas se mantiene estable ante distintas situaciones."
+
+    elif valor < 5:
+        return "Se observan algunas variaciones en tu forma de responder, según la situación."
+
+    elif valor < 10:
+        return "La manera de resolver los dilemas cambia de manera marcada según cómo se presentan las situaciones."
+
+    else:
+        return "Tus respuestas demuestran cambios actuales significativos frente a distintas situaciones, indicando baja estabilidad en el patrón."
     
 API_SYSTEM = "PADE 1.1"
 API_VERSION = "0.1.0"
@@ -96,6 +134,7 @@ class RunRequest(BaseModel):
         if not (v[0] >= v[2] >= v[1]):
             raise ValueError("beta debe cumplir beta[0] >= beta[2] >= beta[1]")
         return v
+        
 def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, Any]:
     """
     Informe protegido (capa textual):
@@ -305,14 +344,19 @@ def ping() -> Dict[str, str]:
 def run(req: RunRequest) -> Dict[str, Any]:
     try:
         responses = req.payload.responses
+
         coverage = cobertura(responses)
+        I_H = inconsistencia_H(responses)
+        I_H_text = inconsistencia_text(I_H)
 
         vector_G = [r.intensidad for r in responses]
 
         report = _protected_report_from_payload(responses)
+
         cov_text = coverage_text(coverage)
         report["details"].append(cov_text)
-        
+        report["details"].append(I_H_text)
+
         # --- Llamada al CORE MEV01 v1.3 (ya alineado con G=demora) ---
         mev_responses = [
             MEVResponse(
