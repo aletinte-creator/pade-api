@@ -29,8 +29,8 @@ def cobertura(responses):
     
 def inconsistencia_H(responses):
 
-    cambios = 0
-    tensiones = 0
+    cambios = 0      # inconsistencia estructural (signo)
+    tensiones = 0    # inconsistencia temporal (G)
 
     for i in range(len(responses)):
         for j in range(i + 1, len(responses)):
@@ -41,15 +41,19 @@ def inconsistencia_H(responses):
             # mismo tipo, distinto H
             if r1.tipo == r2.tipo and r1.H != r2.H:
 
-                # cambia la decisión
                 if r1.signo != r2.signo:
                     cambios += 1
 
-                # misma decisión pero cambia el tiempo
                 elif abs(r1.intensidad - r2.intensidad) >= 2:
                     tensiones += 1
 
-    return cambios + 0.5 * tensiones   
+    total = cambios + 0.5 * tensiones
+
+    return {
+        "total": total,
+        "cambios": cambios,
+        "tensiones": tensiones
+    }
     
 def coverage_text(cov):
 
@@ -68,28 +72,45 @@ def coverage_text(cov):
     else:
         return "El análisis cubre una alta diversidad de situaciones y niveles de implicación, fortaleciendo la validez del resultado."
 
-def inconsistencia_text(valor):
+def inconsistencia_text(I):
 
-    if valor < 2:
-        return "Tu forma de resolver los dilemas se mantiene estable ante distintas situaciones."
+    cambios = I["cambios"]
+    tensiones = I["tensiones"]
 
-    elif valor < 5:
-        return "Se observan algunas variaciones en tu forma de responder, según la situación."
+    # muy estable
+    if cambios == 0 and tensiones == 0:
+        return "La manera en que resuelves los dilemas resulta estable ante diferentes situaciones."
 
-    elif valor < 10:
-        return "La manera de resolver los dilemas cambia de manera marcada según cómo se presentan las situaciones."
+    # cambios estructurales leves / moderados / fuertes
+    if cambios > 0 and tensiones == 0:
+        if cambios < 3:
+            return "Se observan ciertos cambios en la forma en que respondes, según la situación."
+        elif cambios < 6:
+            return "Tu forma de responder varía de manera significativa según cómo se presentan las situaciones."
+        else:
+            return "Tu manera de resolver cambia de forma marcada siempre ante distintas situaciones."
 
-    else:
-        return "Tus respuestas demuestran cambios actuales significativos frente a distintas situaciones, indicando baja estabilidad en el patrón."
+    # tensión temporal
+    if cambios == 0 and tensiones > 0:
+        if tensiones < 3:
+            return "Tus decisiones se mantienen, aunque el tiempo de respuesta varía en algunas situaciones."
+        else:
+            return "Tu decisión se mantiene, pero el tiempo de respuesta cambia consistentemente según la situación."
+
+    # mezcla de todo
+    if cambios > 0 and tensiones > 0:
+        return "Tus decisiones muestran cambios tanto en la forma de actuar como en el tiempo de respuesta según la situación."
+
+    return "Se observan persistentes variaciones en tu forma de responder."
     
 API_SYSTEM = "PADE 1.1"
 API_VERSION = "0.1.0"
 
 # Descripción institucional por nivel (capa seria)
 CONCLUSION_BY_LEVEL = {
-    "high": "El patrón presenta una forma de actuación estable y coherente, orientada a la resolución de situaciones.",
+    "high": "Este patrón presenta un estilo de actuación estable y coherente, orientada a la resolución de situaciones.",
     "medium": "Se observa una dinámica de actuación organizada, pero con variaciones a lo largo del proceso.",
-    "low": "Esta configuración despliega una distribución variable entre múltiples tendencias, sin una predominancia sostenida.",
+    "low": "Esta configuración actual, despliega una distribución variable entre múltiples tendencias, sin una predominancia sostenida.",
 }
 
 Signo = Literal["A", "B", "C", "D", "E", "F"]
