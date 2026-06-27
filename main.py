@@ -10,13 +10,12 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from mev01_core import MEVResponse, procesar_mev01_v13_rev
 from collections import Counter
-import math
 
 def entropy(values):
     total = len(values)
     counts = Counter(values)
     probs = [c / total for c in counts.values()]
-    return -sum(p * math.log(p, 2) for p in probs if p > 0)
+    return -sum(p * math.log(p, 2) for p in probs if p > 0)  
     
 def cobertura(responses):
     tipos = [r.tipo for r in responses]
@@ -81,7 +80,6 @@ class RunPayload(BaseModel):
             last_id = r.id
         return self
 
-
 class RunRequest(BaseModel):
     payload: RunPayload
     alpha: float = Field(..., ge=0.0)
@@ -98,7 +96,6 @@ class RunRequest(BaseModel):
         if not (v[0] >= v[2] >= v[1]):
             raise ValueError("beta debe cumplir beta[0] >= beta[2] >= beta[1]")
         return v
-
 def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, Any]:
     """
     Informe protegido (capa textual):
@@ -123,7 +120,6 @@ def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, A
         "C": "situaciones complicadas",
         "X": "situaciones comprometidas",
     }
-    payload: RunPayload
 
     def _timing_bucket(mean_g: float) -> str:
         # G = demora: 0 inmediato .. 5 mucha demora
@@ -227,57 +223,66 @@ def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, A
     mean_C = _mean_g(by_tipo["C"])
     mean_X = _mean_g(by_tipo["X"])
 
-    def _delta(a: float | None, b: float | None) -> float | None:
-        if a is None or b is None:
+    def _timing_bucket_for_tipo(tipo: str) -> str | None:
+        vals = [r.intensidad for r in by_tipo[tipo]]
+        if not vals:
             return None
-        return a - b
+        return _timing_bucket(sum(vals) / len(vals))
 
-    dxs = _delta(mean_X, mean_S)  # >0 => más demora en X que en S
-    dcs = _delta(mean_C, mean_S)
-    dxc = _delta(mean_X, mean_C)
+    timing_S = _timing_bucket_for_tipo("S")
+    timing_C = _timing_bucket_for_tipo("C")
+    timing_X = _timing_bucket_for_tipo("X")
 
-    insights: List[str] = []
+    # --- 4) contexto global (sin exponer S/C/X) ---
+    max_t = max(t_counts["S"], t_counts["C"], t_counts["X"])
+    if t_counts["S"] == max_t and t_counts["S"] >= t_counts["C"] and t_counts["S"] >= t_counts["X"]:
+        context_txt = "situaciones de baja exigencia"
+    elif t_counts["C"] == max_t and t_counts["C"] >= t_counts["S"] and t_counts["C"] >= t_counts["X"]:
+        context_txt = "situaciones con complejidad moderada"
+    else:
+        context_txt = "situaciones de mayor exigencia o implicación"
 
-    # Cambio de patrón cuando sube exigencia (S -> X)
-    if primary_S and primary_X:
-        if primary_S != primary_X:
-            insights.append(
-                f"Cuando sube la exigencia, cambia tu reacción: en situaciones simples tendés a {phrase[primary_S]}, pero en situaciones comprometidas tendés a {phrase[primary_X]}."
-            )
-        else:
-            insights.append(
-                f"Tu reacción se mantiene estable incluso bajo presión: repetís {phrase[primary_S]} tanto en situaciones simples como en comprometidas."
-            )
+    # --- 5) details base (sin duplicar insights avanzados) ---
+    details: List[str] = []
 
-    # Demora aumenta/disminuye con la exigencia
-    if dxs is not None and dxs >= 0.9:
-        insights.append("Cuando la situación se vuelve comprometida, tu tiempo de respuesta tiende a alargarse.")
-    if dxs is not None and dxs <= -0.9:
-        insights.append("Cuando la situación se vuelve comprometida, tendés a responder más rápido que en lo simple.")
+    details.append(
+        f"No respondés al azar: tendés a {phrase[primary]}, incluso cuando las situaciones cambian."
+    )
+    details.append(
+        f"Aunque no es lo único que hacés: también aparece {phrase[secondary]}."
+    )
 
-    # Caso especial: F en X (desgano bajo presión)
-    if primary_X == "F":
-        if timing_X == "con mayor demora para responder":
-            insights.append("En situaciones comprometidas aparece una combinación peligrosa: respondés a desgano y, además, tardás.")
-        else:
-            insights.append("En situaciones comprometidas tendés a responder a desgano: no es falta de decisión, es falta de sostén.")
+    if primary_S:
+        extra = f" ({timing_S})" if timing_S else ""
+        details.append(f"En {tipo_label['S']}, tendés a {phrase[primary_S]}{extra}.")
+    if primary_C:
+        extra = f" ({timing_C})" if timing_C else ""
+        details.append(f"En {tipo_label['C']}, tendés a {phrase[primary_C]}{extra}.")
+    if primary_X:
+        extra = f" ({timing_X})" if timing_X else ""
+        details.append(f"En {tipo_label['X']}, tendés a {phrase[primary_X]}{extra}.")
 
-    # Diferencia X vs C
-    if dxc is not None and dxc >= 0.9:
-        insights.append("Entre lo complicado y lo comprometido hay un salto: en lo comprometido se te hace más cuesta arriba responder a tiempo.")
+    details.append(
+        f"La clave no es solo la decisión: es el tiempo. En general respondés {timing_global}."
+    )
+    details.append("No es ocasional. Es consistente a lo largo del proceso.")
+    details.append(f"Y ese patrón se mantiene incluso ante {context_txt}.")
 
-    # Consistencia temporal 
-    if dxs is not None and abs(dxs) < 0.5 and dcs is not None and abs(dcs) < 0.5:
-        insights.append("Tu tiempo de respuesta es bastante estable: no cambia demasiado según el tipo de situación.")
+    # --- 6) MOTOR DE INSIGHTS COMBINADOS (patrón + demora + tipo) ---
+    def _mean_g(subset: List[ResponseItem]) -> float | None:
+        if not subset:
+            return None
+        return sum(r.intensidad for r in subset) / len(subset)
 
-    if insights:
-        details = insights + details
+    mean_S = _mean_g(by_tipo["S"])
+    mean_C = _mean_g(by_tipo["C"])
+    mean_X = _mean_g(by_tipo["X"])
 
     return {
-        "level": "medium",  
+        "level": "medium",
         "summary": f"Hay un patrón que se repite: tendés a {phrase[primary]}.",
         "details": details,
-        "conclusion": "El problema no es lo que elegís. Es cuándo lo hacés.",
+        "conclusion": "El problema no es lo que elegís. Es cuándo lo hacés."
     }
 
 app = FastAPI(title="PADE 1.1 API", version=API_VERSION)
@@ -292,7 +297,6 @@ app.add_middleware(
 def home() -> Dict[str, str]:
     return {"message": "PADE API funcionando"}
 
-
 @app.get("/ping")
 def ping() -> Dict[str, str]:
     return {"status": "ok"}
@@ -302,13 +306,13 @@ def run(req: RunRequest) -> Dict[str, Any]:
     try:
         responses = req.payload.responses
         coverage = cobertura(responses)
-        
-        vector_G = [r.intensidad for r in responses]  # G = demora
+
+        vector_G = [r.intensidad for r in responses]
 
         report = _protected_report_from_payload(responses)
         cov_text = coverage_text(coverage)
         report["details"].append(cov_text)
-
+        
         # --- Llamada al CORE MEV01 v1.3 (ya alineado con G=demora) ---
         mev_responses = [
             MEVResponse(
