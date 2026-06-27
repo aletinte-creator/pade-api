@@ -337,12 +337,28 @@ def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, A
     mean_S = _mean_g(by_tipo["S"])
     mean_C = _mean_g(by_tipo["C"])
     mean_X = _mean_g(by_tipo["X"])
+# --- 7) conclusión dinámica (usa inconsistencia) ---
+    I = inconsistencia_H(responses)
+    cambios = I["cambios"]
+    tensiones = I["tensiones"]
+
+    if cambios == 0 and tensiones == 0:
+        conclusion = "Tu forma de actuar se mantiene consistente en distintas situaciones."
+
+    elif cambios > 0 and tensiones == 0:
+        conclusion = "La forma en que actuás varía según cómo se presentan las situaciones."
+
+    elif cambios == 0 and tensiones > 0:
+        conclusion = "La decisión se mantiene, pero el tiempo de respuesta varía según la situación."
+
+    else:
+        conclusion = "Tanto la forma de actuar como el tiempo de respuesta cambian según la situación."
 
     return {
         "level": "medium",
         "summary": f"Hay un patrón que se repite: tendés a {phrase[primary]}.",
         "details": details,
-        "conclusion": "El problema no es lo que elegís. Es cuándo lo hacés."
+        "conclusion": conclusion
     }
 
 app = FastAPI(title="PADE 1.1 API", version=API_VERSION)
