@@ -155,7 +155,8 @@ class RunPayload(BaseModel):
             last_id = r.id
         return self
         
-from pydantic import model_validator, field_validator
+from pydantic import BaseModel, Field, validator
+from typing import List
 
 class RunRequest(BaseModel):
     payload: RunPayload
@@ -164,17 +165,8 @@ class RunRequest(BaseModel):
     beta: List[float] = Field(..., min_length=3, max_length=3)
     lambda_c: float = Field(..., ge=0.0, le=1.0)
 
-    @model_validator(mode="after")
-    def validate_hooks(self):
-        if self.use_hooks:
-            for r in self.payload.responses:
-                if r.tipo == "S" and not r.H:
-                    raise ValueError("Los dilemas tipo S requieren H cuando use_hooks=True")
-        return self
-
-    @field_validator("beta")
-    @classmethod
-    def validate_beta(cls, v: List[float]) -> List[float]:
+    @validator("beta")
+    def validate_beta(cls, v):
         if len(v) != 3:
             raise ValueError("beta debe tener 3 valores")
         if abs(sum(v) - 1.0) > 1e-9:
@@ -182,6 +174,17 @@ class RunRequest(BaseModel):
         if not (v[0] >= v[2] >= v[1]):
             raise ValueError("beta debe cumplir beta[0] >= beta[2] >= beta[1]")
         return v
+
+    @validator("payload")
+    def validate_hooks(cls, payload, values):
+        use_hooks = values.get("use_hooks", False)
+
+        if use_hooks:
+            for r in payload.responses:
+                if r.tipo == "S" and not r.H:
+                    raise ValueError("Los dilemas tipo S requieren H cuando use_hooks=True")
+
+        return payload
         
 def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, Any]:
     """
