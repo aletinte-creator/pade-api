@@ -146,8 +146,8 @@ class RunPayload(BaseModel):
     @model_validator(mode="after")
     def validate_sequence(self) -> "RunPayload":
         n = len(self.responses)
-        if n not in (12, 20):
-            raise ValueError("responses debe tener longitud 12 o 20")
+        if n not in (12, 14, 20):
+            raise ValueError("responses debe tener longitud 12, 14 o 20")
         last_id = None
         for r in self.responses:
             if last_id is not None and r.id <= last_id:
