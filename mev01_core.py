@@ -206,6 +206,25 @@ def procesar_mev01_v13_rev(
         lambda_eff * Pi_last_row[i] + (1.0 - lambda_eff) * theta[i]
         for i in range(6)
     ]
+    # --- Bias por gancho (H) ---
+    HOOK_BIAS = {
+    "culpa": {"C": 0.20, "F": 0.20},
+    "presion": {"D": 0.25},
+    "vinculo": {"E": 0.25}
+    }
+
+    ORDER = ["A", "B", "C", "D", "E", "F"]
+
+    for r in responses:
+        if r.H and r.H.lower() in HOOK_BIAS:
+            bias = HOOK_BIAS[r.H.lower()]
+            for signo, val in bias.items():
+                idx = ORDER.index(signo)
+                P_opcion_next[idx] += val / n  # n = len(responses)
+                
+    total = sum(P_opcion_next)
+    if total > 0:
+        P_opcion_next = [p / total for p in P_opcion_next]
 
     # 10) Entropía H en base 2:
     H = -sum(p * math.log(p, 2) for p in P_opcion_next if p > 0.0)
