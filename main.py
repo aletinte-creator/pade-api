@@ -117,12 +117,28 @@ Signo = Literal["A", "B", "C", "D", "E", "F"]
 TipoSituacion = Literal["S", "C", "X"]
 
 
+from typing import Optional
+from pydantic import BaseModel, Field, field_validator
+
 class ResponseItem(BaseModel):
     id: int = Field(..., ge=1)
     signo: Signo
-    intensidad: int = Field(..., ge=0, le=5)  # G = DEMORA (0 inmediato, 5 mucha demora)
-    tipo: TipoSituacion  # S/C/X
-    H: str
+    intensidad: int = Field(..., ge=0, le=5)
+    tipo: TipoSituacion
+    H: Optional[str] = None
+
+    class Config:
+        extra = "ignore"
+
+    @field_validator("H")
+    @classmethod
+    def validate_H(cls, v):
+        if v is None:
+            return v
+        allowed = {"culpa", "presion", "vinculo"}
+        if v not in allowed:
+            raise ValueError("H inválido")
+        return v
 
 class RunPayload(BaseModel):
     responses: List[ResponseItem]
@@ -138,12 +154,23 @@ class RunPayload(BaseModel):
                 raise ValueError("IDs deben ser estrictamente crecientes")
             last_id = r.id
         return self
+        
+from pydantic import model_validator, field_validator
 
 class RunRequest(BaseModel):
     payload: RunPayload
+    use_hooks: bool = False
     alpha: float = Field(..., ge=0.0)
     beta: List[float] = Field(..., min_length=3, max_length=3)
     lambda_c: float = Field(..., ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def validate_hooks(self):
+        if self.use_hooks:
+            for r in self.payload.responses:
+                if r.tipo == "S" and not r.H:
+                    raise ValueError("Los dilemas tipo S requieren H cuando use_hooks=True")
+        return self
 
     @field_validator("beta")
     @classmethod
