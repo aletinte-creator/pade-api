@@ -491,7 +491,8 @@ def run(req: RunRequest) -> Dict[str, Any]:
         }
 
     except Exception:
-        raise HTTPException(status_code=400, detail="Error al generar el informe protegido")
+        raise HTTPException(status_code=400, detail=str(e))
+
 
     now = datetime.now(timezone.utc).isoformat()
     return {
