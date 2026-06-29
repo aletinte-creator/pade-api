@@ -132,7 +132,8 @@ def procesar_mev01_v13_rev(
 
         r_i = float(G_MAX - r.intensidad)       # rapidez
 
-        k_h = KAPPA_H.get(r.H.lower(), 1.0)
+        h_val = (getattr(r, "H", None) or "").lower()
+        k_h = KAPPA_H.get(h_val, 1.0)
         r_eff = r_i * KAPPA[r.tipo] * k_h       # ← MODIFICADO
 
         w_i = 1.0 + float(alpha) * r_eff
