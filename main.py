@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Literal
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator, model_validator
-
 from mev01_core import MEVResponse, procesar_mev01_v13_rev
 from collections import Counter
 
@@ -390,15 +389,15 @@ def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, A
         "details": details,
         "conclusion": conclusion
     }
-
 app = FastAPI(title="PADE 1.1 API", version=API_VERSION)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # después restringir
+    allow_credentials=True, 
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 @app.get("/")
 def home() -> Dict[str, str]:
     return {"message": "PADE API funcionando"}
