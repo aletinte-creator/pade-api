@@ -25,14 +25,17 @@ K_SPARSE = 12  # anti-sparsity
 G_MAX = 5      # G ∈ [0,5] donde 0=inmediato, 5=mucha demora
 
 
+from dataclasses import dataclass
+from typing import Optional
+
 @dataclass(frozen=True)
 class MEVResponse:
     id: int
     signo: Signo
-    intensidad: int  # G = DEMORA ∈ [0,5]
-    tipo: Tipo       # ∈ {S,C,X}
-    H: str
-
+    intensidad: int
+    tipo: Tipo
+    H: Optional[str] = None   ✅
+    
 class CoreOut(TypedDict):
     T: List[float]
     M: float
@@ -208,25 +211,34 @@ def procesar_mev01_v13_rev(
         for i in range(6)
     ]
     # --- Bias por gancho (H) ---
-    HOOK_BIAS = {
-    "culpa": {"C": 0.20, "F": 0.20},
-    "presion": {"D": 0.25},
-    "vinculo": {"E": 0.25}
-    }
-
-    ORDER = ["A", "B", "C", "D", "E", "F"]
-
+   # --- Bias por ganchos (H) ---
+HOOK_BIAS = {
+    "culpa": {"C": 0.10, "F": 0.10},
+    "presion": {"D": 0.12},
+    "vinculo": {"E": 0.12}
+}
+ORDER = ["A", "B", "C", "D", "E", "F"]
+# contar ganchos válidos
+hook_count = sum(
+    1 for r in responses
+    if (getattr(r, "H", None) or "").lower() in HOOK_BIAS
+)
+# aplicar bias
+if hook_count > 0:
     for r in responses:
-        if r.H and r.H.lower() in HOOK_BIAS:
-            bias = HOOK_BIAS[r.H.lower()]
+        h_val = (getattr(r, "H", None) or "").lower()
+
+        if h_val in HOOK_BIAS:
+            bias = HOOK_BIAS[h_val]
+
             for signo, val in bias.items():
                 idx = ORDER.index(signo)
-                P_opcion_next[idx] += val / n  # n = len(responses)
+                P_opcion_next[idx] += val / hook_count
                 
-    total = sum(P_opcion_next)
-    if total > 0:
-        P_opcion_next = [p / total for p in P_opcion_next]
-
+# --- Normalizar distribución ---
+total = sum(P_opcion_next)
+if total > 0:
+    P_opcion_next = [p / total for p in P_opcion_next]
     # 10) Entropía H en base 2:
     H = -sum(p * math.log(p, 2) for p in P_opcion_next if p > 0.0)
 
