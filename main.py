@@ -9,6 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator, model_validator
 from mev01_core import MEVResponse, procesar_mev01_v13_rev
 from collections import Counter
+import os
+import requests
 
 def entropy(values):
     total = len(values)
@@ -488,12 +490,11 @@ def run(req: RunRequest) -> Dict[str, Any]:
             "M_prime": mev_out["core"]["M_prime"],
             "tau": mev_out["core"]["tau"],
         }
-
-    except Exception:
+         except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
     now = datetime.now(timezone.utc).isoformat()
+
     return {
         "status": "ProductionReady",
         "system": API_SYSTEM,
@@ -501,7 +502,10 @@ def run(req: RunRequest) -> Dict[str, Any]:
         "g_semantics": {
             "scale": "0-5",
             "meaning": "demora",
-            "anchors": {"0": "inmediato", "5": "mucha demora"},
+            "anchors": {
+                "0": "inmediato",
+                "5": "mucha demora"
+            },
         },
         "vector_G": vector_G,
         "metrics": metrics,
@@ -518,3 +522,32 @@ def run(req: RunRequest) -> Dict[str, Any]:
             "K_sparse": mev_out["trace"]["K_sparse"],
         },
     }
+
+
+class SELARequest(BaseModel):
+    informe: str
+
+
+@app.post("/sela")
+def enviar_sela(req: SELARequest):
+
+    response = requests.post(
+        "https://api.resend.com/emails",
+        headers={
+            "Authorization": f"Bearer {os.getenv('RESEND_API_KEY')}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "from": "SELA <onboarding@resend.dev>",
+            "to": "aletinte@gmail.com",
+            "subject": "Informe SELA",
+            "html": req.informe
+        }
+    )
+
+    return {
+        "status": "ok",
+        "resend_status": response.status_code,
+        "resend_response": response.text
+    }
+    
