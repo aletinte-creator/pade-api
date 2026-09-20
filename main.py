@@ -490,7 +490,8 @@ def run(req: RunRequest) -> Dict[str, Any]:
             "M_prime": mev_out["core"]["M_prime"],
             "tau": mev_out["core"]["tau"],
         }
-         except Exception as e:
+
+    except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     now = datetime.now(timezone.utc).isoformat()
