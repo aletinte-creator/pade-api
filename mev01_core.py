@@ -188,17 +188,17 @@ def procesar_mev01_v13_rev(
     )
 
     if hook_count > 0:
-    for r in responses:
+        for r in responses:
 
-        hooks = getattr(r, "H", None) or []
-        h_val = hooks[0] if hooks else ""
+            hooks = getattr(r, "H", None) or []
+            h_val = hooks[0] if hooks else ""
 
-        if h_val in HOOK_BIAS:
-            bias = HOOK_BIAS[h_val]
+            if h_val in HOOK_BIAS:
+                bias = HOOK_BIAS[h_val]
 
-            for signo, val in bias.items():
-                idx = ORDER.index(signo)
-                P_opcion_next[idx] += val / hook_count
+                for signo, val in bias.items():
+                    idx = ORDER.index(signo)
+                    P_opcion_next[idx] += val / hook_count
 
     # -------------------------
     # NORMALIZACIÓN
