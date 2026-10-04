@@ -20,12 +20,17 @@ def entropy(values):
     
 def cobertura(responses):
     tipos = [r.tipo for r in responses]
-    Hs = [r.H.lower() for r in responses]
+
+    Hs = []
+    for r in responses:
+        if r.H:
+            Hs.extend(r.H)
+
     H_tipo = entropy(tipos)
-    H_H = entropy(Hs)
-    implicantes = sum(
-        1 for r in responses if r.H.lower() in ["sabiendo", "te_enteras"]
-    ) / len(responses)
+    H_H = entropy(Hs) if Hs else 0
+
+    implicantes = 0
+
     return H_tipo + H_H + implicantes
     
 def inconsistencia_H(responses):
@@ -118,7 +123,7 @@ Signo = Literal["A", "B", "C", "D", "E", "F"]
 TipoSituacion = Literal["S", "C", "X"]
 
 
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator
 
 class ResponseItem(BaseModel):
@@ -126,20 +131,30 @@ class ResponseItem(BaseModel):
     signo: Signo
     intensidad: int = Field(..., ge=0, le=5)
     tipo: TipoSituacion
-    H: Optional[str] = None
+    H: Optional[List[str]] = None
 
     class Config:
         extra = "ignore"
 
-    @field_validator("H")
-    @classmethod
-    def validate_H(cls, v):
-        if v is None:
-            return v
-        allowed = {"culpa", "presion", "vinculo"}
-        if v not in allowed:
-            raise ValueError("H inválido")
+   @field_validator("H")
+@classmethod
+def validate_H(cls, v):
+    if v is None:
         return v
+
+    allowed = {
+        "culpa",
+        "presion",
+        "vinculo",
+        "atraccion",
+        "lealtad",
+        "distancia",
+        "subsistencia"
+    }
+    for h in v:
+        if h not in allowed:
+            raise ValueError(f"H inválido: {h}")
+    return v
 
 class RunPayload(BaseModel):
     responses: List[ResponseItem]
