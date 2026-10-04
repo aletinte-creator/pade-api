@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator, model_validator
 from mev01_core import MEVResponse, procesar_mev01_v13_rev
-from collections import Counter
+from collections import Counter, defaultdict
 import os
 import requests
 
@@ -227,6 +227,13 @@ def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, A
         "C": "situaciones complicadas",
         "X": "situaciones comprometidas",
     }
+        # --- GANCHOS ---
+    hook_counts = defaultdict(int)
+
+    for r in responses:
+        if r.H:
+            for h in r.H:
+                hook_counts[h] += 1
 
     def _timing_bucket(mean_g: float) -> str:
         # G = demora: 0 inmediato .. 5 mucha demora
@@ -405,8 +412,14 @@ def _protected_report_from_payload(responses: List[ResponseItem]) -> Dict[str, A
         "level": "medium",
         "summary": f"Hay un patrón que se repite: tendés a {phrase[primary]}.",
         "details": details,
-        "conclusion": conclusion
+        "conclusion": conclusion,
+        "hooks": dict(sorted(
+            hook_counts.items(),
+            key=lambda x: x[1],
+            reverse=True
+        ))
     }
+    
 app = FastAPI(title="PADE 1.1 API", version=API_VERSION)
 
 app.add_middleware(
