@@ -136,25 +136,26 @@ class ResponseItem(BaseModel):
     class Config:
         extra = "ignore"
 
-   @field_validator("H")
-@classmethod
-def validate_H(cls, v):
-    if v is None:
-        return v
+    @field_validator("H")
+    @classmethod
+    def validate_H(cls, v):
+        if v is None:
+           return v
 
-    allowed = {
-        "culpa",
-        "presion",
-        "vinculo",
-        "atraccion",
-        "lealtad",
-        "distancia",
-        "subsistencia"
-    }
-    for h in v:
-        if h not in allowed:
-            raise ValueError(f"H inválido: {h}")
-    return v
+        allowed = {
+            "culpa",
+            "presion",
+            "vinculo",
+            "atraccion",
+            "lealtad",
+            "distancia",
+            "subsistencia"
+        }
+        
+        for h in v:
+            if h not in allowed:
+               raise ValueError(f"H inválido: {h}")
+        return v
 
 class RunPayload(BaseModel):
     responses: List[ResponseItem]
