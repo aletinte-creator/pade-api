@@ -39,7 +39,7 @@ class MEVResponse:
     signo: str
     intensidad: int
     tipo: str
-    H: Optional[str] = None
+    H: Optional[List[str]] = None
 
 
 # =========================
@@ -100,7 +100,9 @@ def procesar_mev01_v13_rev(
 
         r_i = float(G_MAX - r.intensidad)
 
-        h_val = (getattr(r, "H", None) or "").lower()
+        hooks = getattr(r, "H", None) or []
+        h_val = hooks[0] if hooks else ""
+        
         k_h = KAPPA_H.get(h_val, 1.0)
 
         r_eff = r_i * KAPPA[r.tipo] * k_h
@@ -182,19 +184,21 @@ def procesar_mev01_v13_rev(
     # =========================
     hook_count = sum(
         1 for r in responses
-        if (getattr(r, "H", None) or "").lower() in HOOK_BIAS
+        if (getattr(r, "H", None) or [])
     )
 
     if hook_count > 0:
-        for r in responses:
-            h_val = (getattr(r, "H", None) or "").lower()
+    for r in responses:
 
-            if h_val in HOOK_BIAS:
-                bias = HOOK_BIAS[h_val]
+        hooks = getattr(r, "H", None) or []
+        h_val = hooks[0] if hooks else ""
 
-                for signo, val in bias.items():
-                    idx = ORDER.index(signo)
-                    P_opcion_next[idx] += val / hook_count
+        if h_val in HOOK_BIAS:
+            bias = HOOK_BIAS[h_val]
+
+            for signo, val in bias.items():
+                idx = ORDER.index(signo)
+                P_opcion_next[idx] += val / hook_count
 
     # -------------------------
     # NORMALIZACIÓN
